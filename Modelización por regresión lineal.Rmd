@@ -1,0 +1,222 @@
+---
+title: "Modelización por regresión lineal"
+author: "Iván Downham Vital"
+date: "25/4/2021"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r include=FALSE}
+library(MASS)
+library(ISLR)
+library(GGally)
+library(dplyr)
+require(psych)
+library(nortest)
+
+Datos <- ISLR::Auto
+```
+
+# Ejemplo General
+
+## Modelos lineal general
+
+Vamos a estudiar el modelo de regresion lineal multiple para base de datos de R llamada `Auto` de la libreria `ISLR` que llamaremos `Datos`. 
+Esta base de datos contiene las siguientes variables:
+
+* mpg -- Millas por galon
+* cylinders -- Numero de cilindros
+* displacement -- Tamaño del motor en pulgadas
+* horsepower -- Caballos de fuerza
+* weight -- Peso del auto en libras
+* acceleration -- Tiempo que tarda en llegar de 0 a 60 millas
+* year -- Modelo del auto
+* origin -- 1 - America, 2 - Europa, 3 - Japon
+* name -- Nombre del auto
+
+Se mostrara una muestra de 6 datos de cada variable para mostarlos:
+
+```{r}
+head(Datos)
+```
+
+Analizaremos los supuestos necesarios para una regresion lineal mutiple, para saber si podemos usar estos datos para hacer una con estas variables para modellar la variables `mpg` con relacion a las demas exceptuando la variable `name`.
+
+A continuacion mostraremos un pequeño resumen estadistico de cada variable del modelo:
+
+```{r}
+summary(Datos)
+```
+
+Es importante analizar los coeficientes de correlacion, en este caso de Pearson, para ver si existe una correlacion fuerte entre las variables. Mas aun podemos incluir las graficas de cada par de variables para apoyo visual.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#ggpairs(select(Datos, - name), lower = list(continuous = "smooth"), diag = list(continuous = "bar"), axisLabels = "none")
+
+multi.hist(x = select(Datos, - name), dcol = c("blue", "red"), dlty = c("dotted", "solid"), main = "" )
+```
+
+Podemos apreciar que casi todas las variables guardan una relacion significativa con la variable a explicar, esto expresado en el coeficiente de correlacion, lo cual nos indica que efectivamente existe una relacion lienal y por lo tanto se cumple el supuesto de "relacion lienal".
+
+Por otro lado, hay variables que, entre las vairbales explicativas, hay algunas que guargan una relacion significativamente alta como `displacement` y `cylinders` (r = 0.95) y ``displacement` y `weight` (r = 0.93). Por lo que solo deberiasmos quedarnos con un par de estas variables pues existe colinealidad.
+
+Ademas podemos ver que las variables que no son meramente enteras y de un una varidad de datos pequeña, como `acceleration`, tienen una distribucion aproximadamente normal.
+
+### El modelo
+
+En primera instancia, haremos el modelo usando todas vlas variables e iremos arreglandolo en caso de encontrar problemas que contradigan los supuestos y asi veremos la evolucion y diferencias entre el modelo original y el final.
+
+
+```{r}
+modelo.lineal <- lm(mpg ~ . - name, data = Datos)
+summary(modelo.lineal)
+```
+Ahora, tomando en cuanta lo que mencionamos antes, existe uba correlacion muy fuerte entre las variables `displacement` -- `cylinders` y ``displacement` -- `weight`. Es decir que puede existr multicolinealidad, A continuacion estudiaremos los modelos quitando estas variables de una en una y de par en par. 
+
+```{r echo=FALSE}
+modelo.lineal1 <- lm(mpg ~ . - name - cylinders, data = Datos)
+R1 <- summary(modelo.lineal1)
+cat("Modelo sin cylinders","R^2",R1$r.squared,"SD",R1$sigma)
+
+modelo.lineal2 <- lm(mpg ~ . - name - weight, data = Datos)
+R2 <- summary(modelo.lineal2)
+cat("Modelo sin weight","R^2",R2$r.squared,"SD",R2$sigma)
+
+modelo.lineal3 <- lm(mpg ~ . - name - weight - cylinders, data = Datos)
+R3 <- summary(modelo.lineal3)
+cat("Modelo sin weight ni cylinders","R^2",R3$r.squared,"SD",R3$sigma)
+
+
+modelo.lineal4 <- lm(mpg ~ . - name - weight - displacement, data = Datos)
+R4 <- summary(modelo.lineal4)
+cat("Modelo sin weight ni displacement","R^2",R4$r.squared,"SD",R4$sigma)
+
+modelo.lineal5 <- lm(mpg ~ . - name - displacement - cylinders, data = Datos)
+R5 <- summary(modelo.lineal5)
+cat("Modelo sin cylinders ni displacement","R^2",R5$r.squared,"SD",R5$sigma)
+
+```
+
+Tomando en cuenta lo anterior, podemos pareciar que el R cuadrada de la regresion sin `cylinders` ni `displacement` es la mejor opcion, aunque el R cuadrada de el modelo sin `cylinders` es "mejor", los valores del R cuadrada y de la desviacion estandar en realidad no difieren tanto entre ambos modelos en comparacion. Por lo que si quitamos las variables de `cylinders` y `displacement` se eliminara de manera significativa los efectos de la multicolinialidad y, al mismo tiempo se mantendran los valores del el error estandar original cercanos al original, ya que estos eran:
+
+```{r echo=FALSE}
+R <- summary(modelo.lineal)
+print("Modelo sin cylinders ni displacement")
+R$r.squared
+R$sigma
+```
+
+El modelo resultante es el siguiente:
+```{r echo=FALSE}
+modelo.linealN <- update(modelo.lineal, formula = ~ . - displacement - cylinders)
+summary(modelo.linealN)
+```
+
+Podemos apreciar que las variables `horsepower` y `acceleration` tienen un p-valor mucho mayor a 0.05, por lo que se tienen que estudiar los modelos sin estas variables de la misma forma que como lo hicimos con la multicolinealidad en la parte enterior.
+
+```{r echo=FALSE}
+modelo.linealN1 <- update(modelo.linealN, formula = ~ . - horsepower)
+RN1 <- summary(modelo.linealN1)
+cat("Modelo sin horsepower","R^2",RN1$r.squared,"SD",RN1$sigma)
+
+modelo.linealN2 <- update(modelo.linealN, formula = ~ . - acceleration)
+RN2 <- summary(modelo.linealN2)
+cat("Modelo sin acceleration","R^2",RN2$r.squared,"SD",RN2$sigma)
+
+modelo.linealN3 <- update(modelo.linealN, formula = ~ . - acceleration - horsepower)
+RN3 <- summary(modelo.linealN3)
+cat("Modelo sin acceleration ni horsepower","R^2",RN3$r.squared,"SD",RN3$sigma)
+```
+
+De la misma forma, el R cuadrada bajo un poco y la desviacion estandar subio, sin embargo, no de manera significativa por lo que se pueden aceptar esas diferencias a costa de mejorar el modelo. 
+Esto con fin de exponer la naturaleza de del principio de suma de cuadrados extra, ya que al quitar variables de esta forma, con el R^2 y el SD, se expone el valor de SCE, porque, por lo que vimos en suma de cuadrados extra, no importa si quitamos o añadimos variables SCT no cambia, pero el SCE si lo hace, y el R^2 esta directamente realcionada con estos dos valores, siendo $$R^2 = \frac{SCE}{SCT}$$ por lo mencionado antes, el SCT es constante, refleja directamente el movimiento del SCE, que es lo que se pretende en suma de cuadrados extra.
+Mas aun, esto ahorra de manera significativa las comparaciones necesarioas para la seleccion del mejor modelo ya que antes de este proceso de filtracion, se tenian que comparar $2^8=256$ posibles convinaciones de variables, y ahora tenemos solo $2^3=8$, todo mientras solucionamos los problemas de multicolinealidad y variables poco significativas en el modelo. Asi, antes del processo de seleccion de mejor modelo y analicis de resuales, tenemos el siguiente modelo:
+```{r echo=FALSE}
+modelo.linealNN <- update(modelo.linealN, formula = ~ . - acceleration - horsepower)
+summary(modelo.linealNN)
+```
+
+A continuacion procederemos a hacer la determinacion del mejor conjunto de variables, ahora que todas las variables que tenemos son significativas y no hay multicolinealidad.
+
+```{r echo=FALSE}
+modelo.linealNN1 <- update(modelo.linealNN, formula = ~ . - weight)
+RNN1 <- summary(modelo.linealNN1)
+cat("Modelo sin weight","R^2",RNN1$r.squared,"SD",RNN1$sigma)
+
+modelo.linealNN2 <- update(modelo.linealNN, formula = ~ . - year)
+RNN2 <- summary(modelo.linealNN2)
+cat("Modelo sin year","R^2",RNN2$r.squared,"SD",RNN2$sigma)
+
+modelo.linealNN3 <- update(modelo.linealNN, formula = ~ . - origin)
+RNN3 <- summary(modelo.linealNN3)
+cat("Modelo sin origin","R^2",RNN3$r.squared,"SD",RNN3$sigma)
+
+
+
+modelo.linealNN4 <- update(modelo.linealNN, formula = ~ . - weight - year)
+RNN4 <- summary(modelo.linealNN4)
+cat("Modelo sin weight ni year","R^2",RNN4$r.squared,"SD",RNN4$sigma)
+
+modelo.linealNN5 <- update(modelo.linealNN, formula = ~ . - weight - origin)
+RNN5 <- summary(modelo.linealNN5)
+cat("Modelo sin weight ni origin","R^2",RNN5$r.squared,"SD",RNN5$sigma)
+
+modelo.linealNN6 <- update(modelo.linealNN, formula = ~ . - year - origin)
+RNN6 <- summary(modelo.linealNN6)
+cat("Modelo sin year  ni origin","R^2",RNN6$r.squared,"SD",RNN6$sigma)
+
+
+
+RNN8 <- summary(modelo.linealNN)
+cat("Modelo con las 3 variables","R^2",RNN8$r.squared,"SD",RNN8$sigma)
+```
+
+Podemos ver que el modelo sin `origin` tiene valores de $R^2$ y SD muy cercanos e insignificantemente diferentes al modelo con las 3 variables, por lo que este es el mejor modelo, lo cual tiene sentido ya que donde fue fabricado el auto no deberia de tener un impacto en las millas por galon ya que esto depende de cuestiones del motor mas que del origen.
+
+Para terminar analizaremos los residuales del modelo.
+
+```{r include=FALSE}
+modelo.linealFital <- update(modelo.linealNN, formula = ~ . - origin)
+Suma <- summary(modelo.linealNN)
+residuales <- Suma$residuals
+```
+
+A continuacion mostraremos la grafica de los residuales
+
+```{r echo=FALSE}
+plot(residuales)
+```
+
+Y la grafica de los residuales estandarizados
+
+```{r echo=FALSE}
+residest <- residuales/sd(residuales)
+plot(residest)
+```
+
+Ahora graficaremos estos datos paraa ver si se distribuyen de manera normal
+
+```{r echo=FALSE}
+hist(residest,nclass=20)
+```
+
+Ahora, verificaremos que efectivamente se distribuye de manera aproximadamente normal con una prueba Pearson de normalidad
+
+```{r}
+pearson.test(residest)
+```
+
+
+
+
+
+
+
+
